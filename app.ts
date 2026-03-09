@@ -16,7 +16,7 @@ import chatbotRouter from "./routes/chatbot.js";
 
 dotenv.config();
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cookieParser());
@@ -27,6 +27,8 @@ app.use(
       "http://localhost:5173",
       "https://wws-idp-website.vercel.app",
       "https://graceful-sable-b6d5d1.netlify.app",
+      "https://worldwisescholars.com",
+      "http://worldwisescholars.com",
     ],
     credentials: true,
   }),
@@ -149,6 +151,9 @@ async function run() {
 
         // ✅ role ambassador না হলে access deny
         if (user.role !== "ambassador") {
+          console.log(
+            `Access Denied for ${email}. Current Role: ${user.role || "undefined"}`,
+          );
           return res
             .status(403)
             .json({ message: "Access denied: Not an ambassador" });
@@ -169,6 +174,38 @@ async function run() {
         res.status(500).json({ message: error.message });
       }
     });
+
+    // =================================================================
+    // 🛠️ FIX: Use this route to manually grant access to your email
+    // =================================================================
+    app.patch("/make-ambassador/:email", async (req, res) => {
+      try {
+        const { email } = req.params;
+        const result = await usersCollection.updateOne(
+          { email: email },
+          {
+            $set: {
+              role: "ambassador",
+              scholarships: true,
+              courses: true,
+              universities: true,
+              events: true,
+            },
+          },
+        );
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "User not found" });
+        }
+        res.send({
+          message: `User ${email} promoted to Ambassador successfully`,
+          result,
+        });
+      } catch (error) {
+        console.error("Error updating user role:", error);
+        res.status(500).send({ message: "Error updating role" });
+      }
+    });
+    // =================================================================
 
     app.post("/post-users", async (req, res) => {
       try {
@@ -370,17 +407,6 @@ async function run() {
         res.status(500).send({ message: "Failed to add Event" });
       }
     });
-
-    // // ================== Get All Events ==================
-    // app.get('/api/events', async (req, res) => {
-    //     try {
-    //         const events = await dbCollections.eventsCollection.find().toArray();
-    //         res.send({ success: true, data: events });
-    //     } catch (err) {
-    //         console.error(err);
-    //         res.status(500).send({ success: false, message: 'Failed to fetch events' });
-    //     }
-    // });
   } catch (err) {
     console.error(err);
   }
